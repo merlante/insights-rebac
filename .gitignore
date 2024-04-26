@@ -39,3 +39,6 @@ bin/
 
 # Local Bonfire Config
 deploy/local_bonfire_config.yaml
+
+# Maven generated artifacts
+java-rebac-client/target/
