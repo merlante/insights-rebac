@@ -5,7 +5,7 @@ import "google/api/annotations.proto";
 import "rebac/v1/relationships.proto";
 option go_package = "ciam-rebac/api/rebac/v1;v1";
 option java_multiple_files = true;
-option java_package = "api.rebac.v1";
+option java_package = "api.check.v1";
 
 service Check {
 	rpc Check (CheckRequest) returns (CheckResponse) {

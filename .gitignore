@@ -41,4 +41,4 @@ bin/
 deploy/local_bonfire_config.yaml
 
 # Maven generated artifacts
-java-rebac-client/target/
+relations-client-java/target/

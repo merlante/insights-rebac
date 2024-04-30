@@ -54,12 +54,12 @@ api:
 #   chmod u+x <PATH>/protoc-gen-grpc-java-1.63.0-osx-aarch_64.exe
 #   ln -s <PATH>/protoc-gen-grpc-java-1.63.0-<ARCH>.exe protoc-gen-grpc-java
 java_api:
-	mkdir -p ./java-rebac-client/src/main/java
+	mkdir -p ./relations-client-java/src/main/java
 	protoc --proto_path=./api \
 		   --proto_path=./third_party \
-		   --java_out=./java-rebac-client/src/main/java \
+		   --java_out=./relations-client-java/src/main/java \
 		   --plugin=protoc-gen-grpc-java \
-		   --grpc-java_out=./java-rebac-client/src/main/java \
+		   --grpc-java_out=./relations-client-java/src/main/java \
 		   $(API_PROTO_FILES)
 
 .PHONY: build
