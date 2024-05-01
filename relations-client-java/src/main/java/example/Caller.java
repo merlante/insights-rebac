@@ -2,10 +2,11 @@ package example;
 
 import api.check.v1.CheckRequest;
 import api.check.v1.CheckResponse;
-import api.relations.v1.ObjectReference;
-import api.relations.v1.SubjectReference;
+import api.relations.v1.*;
 import client.RelationsGrpcClientsManager;
 import io.grpc.stub.StreamObserver;
+
+import java.util.List;
 
 public class Caller {
 
@@ -60,4 +61,58 @@ public class Caller {
         checkClient.check(checkRequest, streamObserver);
 
     }
+
+    public static void getRelationshipsExample() {
+        var url = "localhost:8080";
+
+        /* Make a secure connection with grpc TLS this time */
+        var clientsManager = RelationsGrpcClientsManager.forSecureClients(url);
+        var relationTuplesClient = clientsManager.getRelationTuplesClient();
+
+        var roleBindingsOnWorkspaceFilter = RelationshipFilter.newBuilder()
+                .setObjectType("workspace")
+                .setObjectId("my-lovely-workspace")
+                .setRelation("user_grant").build();
+        var readRelationshipsRequest = ReadRelationshipsRequest.newBuilder()
+                .setFilter(roleBindingsOnWorkspaceFilter).build();
+
+        /*
+         * Blocking
+         */
+
+        var response = relationTuplesClient.readRelationships(readRelationshipsRequest);
+
+        /* We could make this a stream rather than a list -- which is implied/inferred from
+         * the proto -- but for the blocking call there is obviously no concurrency benefit.
+         * List may also change, because I think we need a proto spec change here to specify a stream.
+         * */
+        List<Relationship> relationships = response.getRelationshipsList();
+
+        /*
+         * Non-blocking
+         */
+
+        var streamObserver = new StreamObserver<ReadRelationshipsResponse>() {
+            @Override
+            public void onNext(ReadRelationshipsResponse response) {
+                /* Because we don't return a stream, but a response object with all the relationships inside,
+                 * we get no benefit from an async/non-blocking call right now. It all returns at once.
+                 */
+                List<Relationship> relationships = response.getRelationshipsList();
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                // TODO:
+            }
+
+            @Override
+            public void onCompleted() {
+                // do nothing
+            }
+        };
+        relationTuplesClient.readRelationships(readRelationshipsRequest, streamObserver);
+
+    }
+
 }
