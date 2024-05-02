@@ -8,7 +8,6 @@ import io.grpc.stub.StreamObserver;
 
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 public class Caller {
 
@@ -42,7 +41,7 @@ public class Caller {
         var permitted = checkResponse.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
 
         /* Non-blocking (with callbacks rather the StreamObserver)
-         * (Need to define and pass in 3 callbacks in a StreamObserver to handle responses.)
+         * (onCompleted() not an argument. Use StreamObserver if you care about that.)
          */
         Consumer<CheckResponse> onNext = (cr) -> {
             var p = cr.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
