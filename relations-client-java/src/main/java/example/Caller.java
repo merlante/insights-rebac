@@ -7,6 +7,8 @@ import client.RelationsGrpcClientsManager;
 import io.grpc.stub.StreamObserver;
 
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 public class Caller {
 
@@ -39,26 +41,13 @@ public class Caller {
         var checkResponse = checkClient.check(checkRequest);
         var permitted = checkResponse.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
 
-        /* Non-blocking
+        /* Non-blocking (with callbacks rather the StreamObserver)
          * (Need to define and pass in 3 callbacks in a StreamObserver to handle responses.)
          */
-        var streamObserver = new StreamObserver<CheckResponse>() {
-            @Override
-            public void onNext(CheckResponse value) {
-                var permitted = checkResponse.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
-            }
-
-            @Override
-            public void onError(Throwable t) {
-                // TODO:
-            }
-
-            @Override
-            public void onCompleted() {
-                // do nothing
-            }
+        Consumer<CheckResponse> onNext = (cr) -> {
+            var p = cr.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
         };
-        checkClient.check(checkRequest, streamObserver);
+        checkClient.check(checkRequest, onNext, t -> {}); // throwable not handled yet in the case of error
 
     }
 
