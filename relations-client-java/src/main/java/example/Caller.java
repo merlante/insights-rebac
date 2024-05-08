@@ -5,28 +5,33 @@ import api.check.v1.CheckResponse;
 import api.relations.v1.*;
 import client.RelationsGrpcClientsManager;
 import io.grpc.stub.StreamObserver;
+import io.smallrye.mutiny.Multi;
 
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.concurrent.CountDownLatch;
 
 public class Caller {
 
     public static void main(String[] argv) {
-        var url = "localhost:8080";
+        var url = "localhost:9000";
 
         var clientsManager = RelationsGrpcClientsManager.forInsecureClients(url);
         var checkClient = clientsManager.getCheckClient();
+
+        var userName = "joe";
+        var permission = "view";
+        var thing = "resource";
 
         var checkRequest = CheckRequest.newBuilder()
                 .setSubject(SubjectReference.newBuilder()
                                 .setObject(ObjectReference.newBuilder()
                                         .setType("user")
-                                        .setId("bob").build())
+                                        .setId(userName).build())
                                 .build())
-                .setRelation("view")
+                .setRelation(permission)
                 .setObject(ObjectReference.newBuilder()
-                        .setType("inventory/host")
-                        .setId("host0001")
+                        .setType("thing")
+                        .setId(thing)
                         .build())
                 .build();
 
@@ -40,27 +45,81 @@ public class Caller {
         var checkResponse = checkClient.check(checkRequest);
         var permitted = checkResponse.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
 
-        /* Non-blocking (with callbacks rather the StreamObserver)
-         * (onCompleted() not an argument. Use StreamObserver if you care about that.)
-         */
-        Consumer<CheckResponse> onNext = (cr) -> {
-            var p = cr.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
-        };
-        checkClient.check(checkRequest, onNext, t -> {}); // throwable not handled yet in the case of error
+        if(permitted) {
+            System.out.println("Blocking: Permitted");
+        } else {
+            System.out.println("Blocking: Denied");
+        }
 
+        /*
+         * Non-blocking
+         */
+
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
+        var streamObserver = new StreamObserver<CheckResponse>() {
+            @Override
+            public void onNext(CheckResponse response) {
+                /* Because we don't return a stream, but a response object with all the relationships inside,
+                 * we get no benefit from an async/non-blocking call right now. It all returns at once.
+                 */
+                var permitted = response.getAllowed() == CheckResponse.Allowed.ALLOWED_TRUE;
+
+                if(permitted) {
+                    System.out.println("Non-blocking: Permitted");
+                } else {
+                    System.out.println("Non-blocking: Denied");
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                // TODO:
+            }
+
+            @Override
+            public void onCompleted() {
+                conditionLatch.countDown();
+            }
+        };
+
+        checkClient.check(checkRequest, streamObserver);
+
+        /* Use a passed-in countdownlatch to wait for the result async on the main thread */
+        try {
+            conditionLatch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        /*
+         * Non-blocking reactive style
+         */
+
+        Multi<CheckResponse> multi = checkClient.checkMulti(checkRequest);
+
+        /* Pattern where we may want collect all the responses, but still operate on each as it comes in. */
+        List<CheckResponse> list = multi.onItem()
+                .invoke(() -> {
+                    if(permitted) {
+                        System.out.println("Reactive non-blocking: Permitted");
+                    } else {
+                        System.out.println("Reactive non-blocking: Denied");
+                    }
+                })
+                .collect().asList().await().indefinitely();
+
+        getRelationshipsExample();
     }
 
     public static void getRelationshipsExample() {
-        var url = "localhost:8080";
+        var url = "localhost:9000";
 
         /* Make a secure connection with grpc TLS this time */
-        var clientsManager = RelationsGrpcClientsManager.forSecureClients(url);
+        var clientsManager = RelationsGrpcClientsManager.forInsecureClients(url);
         var relationTuplesClient = clientsManager.getRelationTuplesClient();
 
         var roleBindingsOnWorkspaceFilter = RelationshipFilter.newBuilder()
-                .setObjectType("workspace")
-                .setObjectId("my-lovely-workspace")
-                .setRelation("user_grant").build();
+                .setObjectType("role_binding").build();
         var readRelationshipsRequest = ReadRelationshipsRequest.newBuilder()
                 .setFilter(roleBindingsOnWorkspaceFilter).build();
 
@@ -74,19 +133,22 @@ public class Caller {
          * the proto -- but for the blocking call there is obviously no concurrency benefit.
          * List may also change, because I think we need a proto spec change here to specify a stream.
          * */
-        List<Relationship> relationships = response.getRelationshipsList();
+        var relationshipTuples = response.getRelationshipsList();
+        System.out.println("Blocking relationship tuples: " + relationshipTuples);
 
         /*
          * Non-blocking
          */
 
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
         var streamObserver = new StreamObserver<ReadRelationshipsResponse>() {
             @Override
             public void onNext(ReadRelationshipsResponse response) {
                 /* Because we don't return a stream, but a response object with all the relationships inside,
                  * we get no benefit from an async/non-blocking call right now. It all returns at once.
                  */
-                List<Relationship> relationships = response.getRelationshipsList();
+                var relationshipTuples = response.getRelationshipsList();
+                System.out.println("Non-blocking relationship tuples: " + relationshipTuples);
             }
 
             @Override
@@ -96,10 +158,31 @@ public class Caller {
 
             @Override
             public void onCompleted() {
-                // do nothing
+                conditionLatch.countDown();
             }
         };
         relationTuplesClient.readRelationships(readRelationshipsRequest, streamObserver);
+
+        /* Use a passed-in countdownlatch to wait for the result async on the main thread */
+        try {
+            conditionLatch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        /*
+         * Non-blocking reactive style
+         */
+
+        Multi<ReadRelationshipsResponse> multi = relationTuplesClient.readRelationshipsMulti(readRelationshipsRequest);
+
+        /* Pattern where we may want collect all the responses, but still operate on each as it comes in. */
+        List<ReadRelationshipsResponse> list = multi.onItem()
+                .invoke(() -> {
+                    var tuples = response.getRelationshipsList();
+                    System.out.println("Reactive non-blocking relationship tuples: " + tuples);
+                })
+                .collect().asList().await().indefinitely();
 
     }
 

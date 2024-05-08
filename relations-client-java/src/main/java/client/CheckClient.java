@@ -3,14 +3,11 @@ package client;
 import api.check.v1.CheckGrpc;
 import api.check.v1.CheckRequest;
 import api.check.v1.CheckResponse;
-import api.relations.v1.ReadRelationshipsResponse;
-import api.relations.v1.Relationship;
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.operators.multi.processors.UnicastProcessor;
 
-import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.logging.Logger;
 
 public class CheckClient {
@@ -29,25 +26,30 @@ public class CheckClient {
         asyncStub.check(request, responseObserver);
     }
 
-    public void check(CheckRequest request, Consumer<CheckResponse> onNext, Consumer<Throwable> onError) {
+    public Multi<CheckResponse> checkMulti(CheckRequest request) {
+        final UnicastProcessor<CheckResponse> responseProcessor = UnicastProcessor.create();
+
         var streamObserver = new StreamObserver<CheckResponse>() {
             @Override
             public void onNext(CheckResponse response) {
-                onNext.accept(response);
+                responseProcessor.onNext(response);
             }
 
             @Override
             public void onError(Throwable t) {
-                onError.accept(t);
+                responseProcessor.onError(t);
             }
 
             @Override
             public void onCompleted() {
-                // if you want this callback, maybe you should just use StreamObserver?
+                responseProcessor.onComplete();
             }
         };
 
+        var multi = Multi.createFrom().publisher(responseProcessor);
         check(request, streamObserver);
+
+        return multi;
     }
 
     public CheckResponse check(CheckRequest request) {

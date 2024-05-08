@@ -9,6 +9,8 @@ import api.relations.v1.ReadRelationshipsResponse;
 import api.relations.v1.DeleteRelationshipsResponse;
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.operators.multi.processors.UnicastProcessor;
 
 
 public class RelationTuplesClient {
@@ -57,5 +59,31 @@ public class RelationTuplesClient {
      */
     public DeleteRelationshipsResponse deleteRelationships(DeleteRelationshipsRequest request) {
         return blockingStub.deleteRelationships(request);
+    }
+
+    public Multi<ReadRelationshipsResponse> readRelationshipsMulti(ReadRelationshipsRequest request) {
+        final UnicastProcessor<ReadRelationshipsResponse> responseProcessor = UnicastProcessor.create();
+
+        var streamObserver = new StreamObserver<ReadRelationshipsResponse>() {
+            @Override
+            public void onNext(ReadRelationshipsResponse response) {
+                responseProcessor.onNext(response);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                responseProcessor.onError(t);
+            }
+
+            @Override
+            public void onCompleted() {
+                responseProcessor.onComplete();
+            }
+        };
+
+        var multi = Multi.createFrom().publisher(responseProcessor);
+        readRelationships(request, streamObserver);
+
+        return multi;
     }
 }
