@@ -6,6 +6,7 @@ import api.check.v1.CheckResponse;
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.operators.multi.processors.UnicastProcessor;
 
 import java.util.logging.Logger;
@@ -26,7 +27,7 @@ public class CheckClient {
         asyncStub.check(request, responseObserver);
     }
 
-    public Multi<CheckResponse> checkMulti(CheckRequest request) {
+    public Uni<CheckResponse> checkUni(CheckRequest request) {
         final UnicastProcessor<CheckResponse> responseProcessor = UnicastProcessor.create();
 
         var streamObserver = new StreamObserver<CheckResponse>() {
@@ -46,10 +47,10 @@ public class CheckClient {
             }
         };
 
-        var multi = Multi.createFrom().publisher(responseProcessor);
+        var uni = Uni.createFrom().publisher(responseProcessor);
         check(request, streamObserver);
 
-        return multi;
+        return uni;
     }
 
     public CheckResponse check(CheckRequest request) {

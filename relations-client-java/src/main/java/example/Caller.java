@@ -6,6 +6,7 @@ import api.relations.v1.*;
 import client.RelationsGrpcClientsManager;
 import io.grpc.stub.StreamObserver;
 import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -95,10 +96,10 @@ public class Caller {
          * Non-blocking reactive style
          */
 
-        Multi<CheckResponse> multi = checkClient.checkMulti(checkRequest);
+        Uni<CheckResponse> uni = checkClient.checkUni(checkRequest);
 
         /* Pattern where we may want collect all the responses, but still operate on each as it comes in. */
-        List<CheckResponse> list = multi.onItem()
+        CheckResponse cr = uni.onItem()
                 .invoke(() -> {
                     if(permitted) {
                         System.out.println("Reactive non-blocking: Permitted");
@@ -106,7 +107,7 @@ public class Caller {
                         System.out.println("Reactive non-blocking: Denied");
                     }
                 })
-                .collect().asList().await().indefinitely();
+                .await().indefinitely();
 
         getRelationshipsExample();
     }
