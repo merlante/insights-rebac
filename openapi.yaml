@@ -138,6 +138,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/api.rebac.v1.DeleteRelationshipsResponse'
+    /v1/subjects:
+        get:
+            tags:
+                - Lookup
+            operationId: Lookup_Subjects
+            parameters:
+                - name: subjectType
+                  in: query
+                  schema:
+                    type: string
+                - name: relation
+                  in: query
+                  schema:
+                    type: string
+                - name: object.type
+                  in: query
+                  schema:
+                    type: string
+                - name: object.id
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.rebac.v1.LookupSubjectsResponse'
 components:
     schemas:
         api.health.v1.GetLivezReply:
@@ -176,6 +205,11 @@ components:
         api.rebac.v1.DeleteRelationshipsResponse:
             type: object
             properties: {}
+        api.rebac.v1.LookupSubjectsResponse:
+            type: object
+            properties:
+                subject:
+                    $ref: '#/components/schemas/api.rebac.v1.SubjectReference'
         api.rebac.v1.ObjectReference:
             type: object
             properties:
@@ -209,4 +243,5 @@ components:
 tags:
     - name: Check
     - name: Health
+    - name: Lookup
     - name: Relationships

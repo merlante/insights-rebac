@@ -12,6 +12,7 @@ type TouchSemantics bool
 
 type ZanzibarRepository interface {
 	Check(ctx context.Context, request *v1.CheckRequest) (*v1.CheckResponse, error)
+	LookupSubjects(context.Context, string, string, *v1.ObjectReference) (chan *v1.SubjectReference, chan error, error)
 	CreateRelationships(context.Context, []*v1.Relationship, TouchSemantics) error
 	ReadRelationships(context.Context, *v1.RelationshipFilter) ([]*v1.Relationship, error)
 	DeleteRelationships(context.Context, *v1.RelationshipFilter) error

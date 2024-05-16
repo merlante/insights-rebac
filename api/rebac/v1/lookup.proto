@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package api.rebac.v1;
+
+import "google/api/annotations.proto";
+import "rebac/v1/relationships.proto";
+
+option go_package = "ciam-rebac/api/rebac/v1;v1";
+option java_multiple_files = true;
+option java_package = "api.rebac.v1";
+
+service Lookup {
+    rpc Subjects(LookupSubjectsRequest) returns (stream LookupSubjectsResponse) {
+        option (google.api.http) = {
+            get: "/v1/subjects"
+        };
+    };
+}
+
+message LookupSubjectsRequest {
+    string subject_type = 1;
+    string relation = 2;
+    ObjectReference object = 3;
+}
+
+message LookupSubjectsResponse {
+    SubjectReference subject = 1;
+}

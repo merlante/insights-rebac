@@ -7,14 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 	"github.com/authzed/authzed-go/v1"
 	"github.com/authzed/grpcutil"
 	"github.com/go-kratos/kratos/v2/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"io"
-	"os"
 )
 
 // SpiceDbRepository .
@@ -73,6 +74,49 @@ func NewSpiceDbRepository(c *conf.Data, logger log.Logger) (*SpiceDbRepository, 
 	}
 
 	return &SpiceDbRepository{client}, cleanup, nil
+}
+
+func (s *SpiceDbRepository) LookupSubjects(ctx context.Context, subject_type string, relation string, object *apiV1.ObjectReference) (chan *apiV1.SubjectReference, chan error, error) {
+	client, err := s.client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
+		Resource: &v1.ObjectReference{
+			ObjectType: object.Type,
+			ObjectId:   object.Id,
+		},
+		Permission:              relation,
+		SubjectObjectType:       subject_type,
+		OptionalSubjectRelation: "",
+		OptionalConcreteLimit:   0,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	subjects := make(chan *v1.SubjectReference)
+	errs := make(chan error, 1)
+
+	go func() {
+		msg, err := client.Recv()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				errs <- err
+			}
+			close(errs)
+			close(subjects)
+			return
+		}
+
+		subj := msg.GetSubject()
+		subjects <- &v1.SubjectReference{
+			Object: &v1.ObjectReference{
+				ObjectType: subject_type,
+				ObjectId:   subj.SubjectObjectId,
+			},
+			OptionalRelation: "",
+		}
+	}()
+
+	return nil, nil, nil
 }
 
 func (s *SpiceDbRepository) CreateRelationships(ctx context.Context, rels []*apiV1.Relationship, touch biz.TouchSemantics) error {
