@@ -76,7 +76,14 @@ func NewSpiceDbRepository(c *conf.Data, logger log.Logger) (*SpiceDbRepository, 
 	return &SpiceDbRepository{client}, cleanup, nil
 }
 
-func (s *SpiceDbRepository) LookupSubjects(ctx context.Context, subject_type string, relation string, object *apiV1.ObjectReference) (chan *apiV1.SubjectReference, chan error, error) {
+func (s *SpiceDbRepository) LookupSubjects(ctx context.Context, subject_type, relation string, object *apiV1.ObjectReference, limit uint32, continuation biz.ContinuationToken) (chan *biz.SubjectResult, chan error, error) {
+	var cursor *v1.Cursor = nil
+	if continuation != "" {
+		cursor = &v1.Cursor{
+			Token: string(continuation),
+		}
+	}
+
 	client, err := s.client.LookupSubjects(ctx, &v1.LookupSubjectsRequest{
 		Resource: &v1.ObjectReference{
 			ObjectType: object.Type,
@@ -85,14 +92,15 @@ func (s *SpiceDbRepository) LookupSubjects(ctx context.Context, subject_type str
 		Permission:              relation,
 		SubjectObjectType:       subject_type,
 		OptionalSubjectRelation: "",
-		OptionalConcreteLimit:   0,
+		OptionalConcreteLimit:   limit,
+		OptionalCursor:          cursor,
 	})
 
 	if err != nil {
 		return nil, nil, err
 	}
 
-	subjects := make(chan *apiV1.SubjectReference)
+	subjects := make(chan *biz.SubjectResult)
 	errs := make(chan error, 1)
 
 	go func() {
@@ -107,13 +115,21 @@ func (s *SpiceDbRepository) LookupSubjects(ctx context.Context, subject_type str
 				return
 			}
 
+			continuation := biz.ContinuationToken("")
+			if msg.AfterResultCursor != nil {
+				continuation = biz.ContinuationToken(msg.AfterResultCursor.Token)
+			}
+
 			subj := msg.GetSubject()
-			subjects <- &apiV1.SubjectReference{
-				Object: &apiV1.ObjectReference{
-					Type: subject_type,
-					Id:   subj.SubjectObjectId,
+			subjects <- &biz.SubjectResult{
+				Subject: &apiV1.SubjectReference{
+					Object: &apiV1.ObjectReference{
+						Type: subject_type,
+						Id:   subj.SubjectObjectId,
+					},
+					Relation: "",
 				},
-				Relation: "",
+				Continuation: continuation,
 			}
 		}
 	}()
