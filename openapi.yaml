@@ -148,6 +148,10 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: subjectRelation
+                  in: query
+                  schema:
+                    type: string
                 - name: relation
                   in: query
                   schema:
