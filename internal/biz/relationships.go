@@ -15,12 +15,16 @@ type SubjectResult struct {
 	Subject      *v1.SubjectReference
 	Continuation ContinuationToken
 }
+type RelationshipResult struct {
+	Relationship *v1.Relationship
+	Continuation ContinuationToken
+}
 
 type ZanzibarRepository interface {
 	Check(ctx context.Context, request *v1.CheckRequest) (*v1.CheckResponse, error)
 	LookupSubjects(ctx context.Context, subject_type, subject_relation, relation string, object *v1.ObjectReference, limit uint32, continuation ContinuationToken) (chan *SubjectResult, chan error, error)
 	CreateRelationships(context.Context, []*v1.Relationship, TouchSemantics) error
-	ReadRelationships(context.Context, *v1.RelationshipFilter) ([]*v1.Relationship, error)
+	ReadRelationships(ctx context.Context, filter *v1.RelationshipFilter, limit uint32, continuation ContinuationToken) (chan *RelationshipResult, chan error, error)
 	DeleteRelationships(context.Context, *v1.RelationshipFilter) error
 }
 
@@ -61,9 +65,26 @@ func NewReadRelationshipsUsecase(repo ZanzibarRepository, logger log.Logger) *Re
 	return &ReadRelationshipsUsecase{repo: repo, log: log.NewHelper(logger)}
 }
 
-func (rc *ReadRelationshipsUsecase) ReadRelationships(ctx context.Context, r *v1.RelationshipFilter) ([]*v1.Relationship, error) {
-	rc.log.WithContext(ctx).Infof("ReadRelationships: %v", r)
-	return rc.repo.ReadRelationships(ctx, r)
+func (rc *ReadRelationshipsUsecase) ReadRelationships(ctx context.Context, req *v1.ReadRelationshipsRequest) (chan *RelationshipResult, chan error, error) {
+	rc.log.WithContext(ctx).Infof("ReadRelationships: %v", req)
+
+	limit := uint32(MaxStreamingCount)
+	if req.Limit != nil && *req.Limit < limit {
+		limit = *req.Limit
+	}
+
+	continuation := ContinuationToken("")
+	if req.ContinuationToken != nil {
+		continuation = ContinuationToken(*req.ContinuationToken)
+	}
+
+	relationships, errs, err := rc.repo.ReadRelationships(ctx, req.Filter, limit, continuation)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return relationships, errs, nil
 }
 
 type DeleteRelationshipsUsecase struct {

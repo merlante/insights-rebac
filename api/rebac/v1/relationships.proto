@@ -15,7 +15,7 @@ service Relationships {
 			body: "*"
 		};
 	};
-	rpc ReadRelationships (ReadRelationshipsRequest) returns (ReadRelationshipsResponse) {
+	rpc ReadRelationships (ReadRelationshipsRequest) returns (stream ReadRelationshipsResponse) {
 		option (google.api.http) = {
 			get: "/v1/relationships"
 		};
@@ -35,9 +35,13 @@ message CreateRelationshipsResponse {}
 
 message ReadRelationshipsRequest {
 	RelationshipFilter filter = 1;
+	optional uint32 limit = 2;
+	optional string continuation_token = 3;
 }
 message ReadRelationshipsResponse {
-	repeated Relationship relationships = 1;
+	Relationship relationship = 1;
+	bool has_more = 2;
+	string continuation_token = 3;
 }
 
 message DeleteRelationshipsRequest {

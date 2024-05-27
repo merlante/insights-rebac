@@ -78,6 +78,15 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: limit
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: continuationToken
+                  in: query
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -237,10 +246,12 @@ components:
         api.rebac.v1.ReadRelationshipsResponse:
             type: object
             properties:
-                relationships:
-                    type: array
-                    items:
-                        $ref: '#/components/schemas/api.rebac.v1.Relationship'
+                relationship:
+                    $ref: '#/components/schemas/api.rebac.v1.Relationship'
+                hasMore:
+                    type: boolean
+                continuationToken:
+                    type: string
         api.rebac.v1.Relationship:
             type: object
             properties:

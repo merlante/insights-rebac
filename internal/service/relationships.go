@@ -3,7 +3,6 @@ package service
 import (
 	"ciam-rebac/internal/biz"
 	"context"
-
 	"github.com/go-kratos/kratos/v2/log"
 
 	pb "ciam-rebac/api/rebac/v1"
@@ -37,16 +36,31 @@ func (s *RelationshipsService) CreateRelationships(ctx context.Context, req *pb.
 	return &pb.CreateRelationshipsResponse{}, nil
 }
 
-func (s *RelationshipsService) ReadRelationships(ctx context.Context, req *pb.ReadRelationshipsRequest) (*pb.ReadRelationshipsResponse, error) {
-	s.log.Infof("Read relationships request: %v", req)
+func (s *RelationshipsService) ReadRelationships(req *pb.ReadRelationshipsRequest, conn pb.Relationships_ReadRelationshipsServer) error {
+	ctx := conn.Context() //Doesn't get context from grpc?
 
-	if relationships, err := s.readUsecase.ReadRelationships(ctx, req.GetFilter()); err != nil {
-		return nil, err
-	} else {
-		return &pb.ReadRelationshipsResponse{
-			Relationships: relationships,
-		}, nil
+	relationships, errs, err := s.readUsecase.ReadRelationships(ctx, req)
+
+	if err != nil {
+		return err
 	}
+
+	for rel := range relationships {
+		err = conn.Send(&pb.ReadRelationshipsResponse{
+			Relationship:      rel.Relationship,
+			ContinuationToken: string(rel.Continuation),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	err, ok := <-errs
+	if ok {
+		return err
+	}
+
+	return nil
 }
 
 func (s *RelationshipsService) DeleteRelationships(ctx context.Context, req *pb.DeleteRelationshipsRequest) (*pb.DeleteRelationshipsResponse, error) {

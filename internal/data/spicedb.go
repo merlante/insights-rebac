@@ -161,41 +161,66 @@ func (s *SpiceDbRepository) CreateRelationships(ctx context.Context, rels []*api
 	return err
 }
 
-func (s *SpiceDbRepository) ReadRelationships(ctx context.Context, filter *apiV1.RelationshipFilter) ([]*apiV1.Relationship, error) {
-	req := &v1.ReadRelationshipsRequest{RelationshipFilter: createSpiceDbRelationshipFilter(filter)}
+func (s *SpiceDbRepository) ReadRelationships(ctx context.Context, filter *apiV1.RelationshipFilter, limit uint32, continuation biz.ContinuationToken) (chan *biz.RelationshipResult, chan error, error) {
+	var cursor *v1.Cursor = nil
+	if continuation != "" {
+		cursor = &v1.Cursor{
+			Token: string(continuation),
+		}
+	}
 
-	client, err := s.client.ReadRelationships(ctx, req)
+	client, err := s.client.ReadRelationships(ctx, &v1.ReadRelationshipsRequest{
+		RelationshipFilter: createSpiceDbRelationshipFilter(filter),
+		OptionalLimit:      limit,
+		OptionalCursor:     cursor,
+	})
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	results := make([]*apiV1.Relationship, 0)
-	resp, err := client.Recv()
-	for err == nil {
-		results = append(results, &apiV1.Relationship{
-			Object: &apiV1.ObjectReference{
-				Type: resp.Relationship.Resource.ObjectType,
-				Id:   resp.Relationship.Resource.ObjectId,
-			},
-			Relation: resp.Relationship.Relation,
-			Subject: &apiV1.SubjectReference{
-				Relation: resp.Relationship.Subject.OptionalRelation,
-				Object: &apiV1.ObjectReference{
-					Type: resp.Relationship.Subject.Object.ObjectType,
-					Id:   resp.Relationship.Subject.Object.ObjectId,
+	relationshipTuples := make(chan *biz.RelationshipResult)
+	errs := make(chan error, 1)
+
+	go func() {
+		for {
+			msg, err := client.Recv()
+			if err != nil {
+				if !errors.Is(err, io.EOF) {
+					errs <- err
+				}
+				close(errs)
+				close(relationshipTuples)
+				return
+			}
+
+			continuation := biz.ContinuationToken("")
+			if msg.AfterResultCursor != nil {
+				continuation = biz.ContinuationToken(msg.AfterResultCursor.Token)
+			}
+
+			spiceDbRel := msg.GetRelationship()
+			relationshipTuples <- &biz.RelationshipResult{
+				Relationship: &apiV1.Relationship{
+					Object: &apiV1.ObjectReference{
+						Type: spiceDbRel.Resource.ObjectType,
+						Id:   spiceDbRel.Resource.ObjectId,
+					},
+					Relation: msg.Relationship.Relation,
+					Subject: &apiV1.SubjectReference{
+						Relation: spiceDbRel.Subject.OptionalRelation,
+						Object: &apiV1.ObjectReference{
+							Type: spiceDbRel.Subject.Object.ObjectType,
+							Id:   spiceDbRel.Subject.Object.ObjectId,
+						},
+					},
 				},
-			},
-		})
+				Continuation: continuation,
+			}
+		}
+	}()
 
-		resp, err = client.Recv()
-	}
-
-	if !errors.Is(err, io.EOF) {
-		return nil, err
-	}
-
-	return results, nil
+	return relationshipTuples, errs, nil
 }
 
 func (s *SpiceDbRepository) DeleteRelationships(ctx context.Context, filter *apiV1.RelationshipFilter) error {
