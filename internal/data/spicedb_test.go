@@ -178,7 +178,7 @@ func TestWriteAndReadBackRelationships(t *testing.T) {
 		return
 	}
 
-	readrels, err := spiceDbRepo.ReadRelationships(ctx, &apiV1.RelationshipFilter{
+	readRelChan, _, err := spiceDbRepo.ReadRelationships(ctx, &apiV1.RelationshipFilter{
 		ObjectId:   "bob_club",
 		ObjectType: "group",
 		Relation:   "member",
@@ -186,7 +186,8 @@ func TestWriteAndReadBackRelationships(t *testing.T) {
 			SubjectId:   "bob",
 			SubjectType: "user",
 		},
-	})
+	}, 0, "")
+	readrels := spiceRelChanToSlice(readRelChan)
 
 	if !assert.NoError(t, err) {
 		return
@@ -214,7 +215,7 @@ func TestWriteReadBackDeleteAndReadBackRelationships(t *testing.T) {
 		return
 	}
 
-	readrels, err := spiceDbRepo.ReadRelationships(ctx, &apiV1.RelationshipFilter{
+	readRelChan, _, err := spiceDbRepo.ReadRelationships(ctx, &apiV1.RelationshipFilter{
 		ObjectId:   "bob_club",
 		ObjectType: "group",
 		Relation:   "member",
@@ -222,7 +223,8 @@ func TestWriteReadBackDeleteAndReadBackRelationships(t *testing.T) {
 			SubjectId:   "bob",
 			SubjectType: "user",
 		},
-	})
+	}, 0, "")
+	readrels := spiceRelChanToSlice(readRelChan)
 
 	if !assert.NoError(t, err) {
 		return
@@ -244,7 +246,7 @@ func TestWriteReadBackDeleteAndReadBackRelationships(t *testing.T) {
 		return
 	}
 
-	readrels, err = spiceDbRepo.ReadRelationships(ctx, &apiV1.RelationshipFilter{
+	readRelChan, _, err = spiceDbRepo.ReadRelationships(ctx, &apiV1.RelationshipFilter{
 		ObjectId:   "bob_club",
 		ObjectType: "group",
 		Relation:   "member",
@@ -252,7 +254,8 @@ func TestWriteReadBackDeleteAndReadBackRelationships(t *testing.T) {
 			SubjectId:   "bob",
 			SubjectType: "user",
 		},
-	})
+	}, 0, "")
+	readrels = spiceRelChanToSlice(readRelChan)
 
 	if !assert.NoError(t, err) {
 		return
@@ -365,4 +368,12 @@ func createRelationship(subjectId string, subjectType string, subjectRelationshi
 		Relation: relationship,
 		Subject:  subject,
 	}
+}
+
+func spiceRelChanToSlice(c chan *biz.RelationshipResult) []*biz.RelationshipResult {
+	s := make([]*biz.RelationshipResult, 0)
+	for i := range c {
+		s = append(s, i)
+	}
+	return s
 }
